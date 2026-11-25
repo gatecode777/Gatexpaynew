@@ -25,11 +25,10 @@ export async function GET(req) {
       .limit(limit)
       .populate("category", "name slug")
       .lean();
-    return NextResponse.json({
-      success: true,
-      total: posts.length,
-      posts,
-    });
+    return NextResponse.json(
+      { success: true, total: posts.length, posts },
+      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } }
+    );
   } catch (error) {
     return NextResponse.json(
       {

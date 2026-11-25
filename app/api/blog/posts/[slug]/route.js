@@ -10,7 +10,8 @@ export async function GET(_req, { params }) {
       { slug: slug.toLowerCase(), status: "published", isDeleted: false },
       { $inc: { views: 1 } },
       { new: true }
-    ).populate("category", "name slug");
+    ).populate("category", "name slug")
+      .lean();
     if (!post) {
       return NextResponse.json(
         { success: false, error: "Blog post not found" },

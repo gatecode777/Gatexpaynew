@@ -43,6 +43,7 @@ const BRANDS = [
 export default function TrustRibbon() {
   return (
     <div className="trust-ribbon" aria-label="Trusted by leading brands">
+      <div className="container trust-viewport">
       <div className="trust-track" aria-hidden="true">
         {/* Duplicated once for a seamless infinite loop */}
         {[...BRANDS, ...BRANDS].map((brand, i) => (
@@ -56,6 +57,7 @@ export default function TrustRibbon() {
             draggable={false}
           />
         ))}
+      </div>
       </div>
     </div>
   );

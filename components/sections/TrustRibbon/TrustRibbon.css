@@ -13,6 +13,11 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Clip the marquee to the same width as the content below */
+.trust-viewport {
+  overflow: hidden;
+}
+
 /* Infinite scroll track */
 .trust-track {
   display: flex;

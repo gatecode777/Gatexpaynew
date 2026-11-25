@@ -19,54 +19,43 @@ export async function GET(req) {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
     // 1. Fetch real counts & weekly delta comparisons
-    const [
-      totalLeads,
-      newLeads,
-      inProgress,
-      contacted,
-      closed,
-      totalConsents,
-      leadsThisWeek,
-      leadsLastWeek,
-      newThisWeek,
-      newLastWeek,
-      progressThisWeek,
-      progressLastWeek,
-      consentsThisWeek,
-      consentsLastWeek,
-      enquiries,
-      consents,
-    ] = await Promise.all([
-      Enquiry.countDocuments(),
-      Enquiry.countDocuments({ status: "new" }),
-      Enquiry.countDocuments({ status: "in_progress" }),
-      Enquiry.countDocuments({ status: "contacted" }),
-      Enquiry.countDocuments({ status: "closed" }),
-      CookieConsent.countDocuments(),
-      Enquiry.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
-      Enquiry.countDocuments({
-        createdAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo },
-      }),
-      Enquiry.countDocuments({
-        status: "new",
-        createdAt: { $gte: sevenDaysAgo },
-      }),
-      Enquiry.countDocuments({
-        status: "new",
-        createdAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo },
-      }),
-      Enquiry.countDocuments({
-        status: { $in: ["in_progress", "contacted"] },
-        updatedAt: { $gte: sevenDaysAgo },
-      }),
-      Enquiry.countDocuments({
-        status: { $in: ["in_progress", "contacted"] },
-        updatedAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo },
-      }),
-      CookieConsent.countDocuments({ updatedAt: { $gte: sevenDaysAgo } }),
-      CookieConsent.countDocuments({
-        updatedAt: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo },
-      }),
+    const inRange = (field, from, to) => {
+      const c = [{ $gte: ["$" + field, from] }];
+      if (to) c.push({ $lt: ["$" + field, to] });
+      return { $and: c };
+    };
+    const count = (cond) => ({ $sum: { $cond: [cond, 1, 0] } });
+    const active = { $in: ["$status", ["in_progress", "contacted"]] };
+    // One pass per collection instead of 14 countDocuments
+    const [[e = {}], [c = {}], enquiries, consents] = await Promise.all([
+      Enquiry.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalLeads: { $sum: 1 },
+            newLeads: count({ $eq: ["$status", "new"] }),
+            inProgress: count({ $eq: ["$status", "in_progress"] }),
+            contacted: count({ $eq: ["$status", "contacted"] }),
+            closed: count({ $eq: ["$status", "closed"] }),
+            leadsThisWeek: count(inRange("createdAt", sevenDaysAgo)),
+            leadsLastWeek: count(inRange("createdAt", fourteenDaysAgo, sevenDaysAgo)),
+            newThisWeek: count({ $and: [{ $eq: ["$status", "new"] }, inRange("createdAt", sevenDaysAgo)] }),
+            newLastWeek: count({ $and: [{ $eq: ["$status", "new"] }, inRange("createdAt", fourteenDaysAgo, sevenDaysAgo)] }),
+            progressThisWeek: count({ $and: [active, inRange("updatedAt", sevenDaysAgo)] }),
+            progressLastWeek: count({ $and: [active, inRange("updatedAt", fourteenDaysAgo, sevenDaysAgo)] }),
+          },
+        },
+      ]),
+      CookieConsent.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalConsents: { $sum: 1 },
+            consentsThisWeek: count(inRange("updatedAt", sevenDaysAgo)),
+            consentsLastWeek: count(inRange("updatedAt", fourteenDaysAgo, sevenDaysAgo)),
+          },
+        },
+      ]),
       Enquiry.find()
         .sort({ createdAt: -1 })
         .limit(100)
@@ -78,6 +67,12 @@ export async function GET(req) {
         .select("consentId decision createdAt updatedAt")
         .lean(),
     ]);
+    const {
+      totalLeads = 0, newLeads = 0, inProgress = 0, contacted = 0, closed = 0,
+      leadsThisWeek = 0, leadsLastWeek = 0, newThisWeek = 0, newLastWeek = 0,
+      progressThisWeek = 0, progressLastWeek = 0,
+    } = e;
+    const { totalConsents = 0, consentsThisWeek = 0, consentsLastWeek = 0 } = c;
     // Helper to calculate real percentage trend
     function calculateTrend(current, prior) {
       if (prior === 0) {
