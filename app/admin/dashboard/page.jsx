@@ -35,6 +35,7 @@ import DeleteConfirmModal from "@/components/admin/DeleteConfirmModal";
 import BlogArticlesTable from "@/components/admin/BlogArticlesTable";
 import AddBlogModal from "@/components/admin/AddBlogModal";
 import CookieConsentsTable from "@/components/admin/CookieConsentsTable";
+import { createPoller } from "@/lib/admin-polling";
 import "./dashboard.css";
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -214,13 +215,13 @@ export default function AdminDashboardPage() {
     const timer = setTimeout(() => {
       fetchData();
     }, 0);
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      fetchData();
-    }, 25000);
+    const poller = createPoller(fetchData);
+    const onVisibility = () => poller.onVisible();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       clearTimeout(timer);
-      clearInterval(interval);
+      poller.stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [fetchData]);
   // Escape key handler
